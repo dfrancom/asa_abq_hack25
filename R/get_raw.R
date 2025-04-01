@@ -2,16 +2,24 @@ library(data.table)
 library(ggplot2)
 library(pracma)
 
-source('sam_helpers.R')
+
+# Source asa_abq_hack25 R script dependencies (in order).
+source('~/Documents/hackathon/asa_abq_hack25/R/binary_io.R')
+source('~/Documents/hackathon/asa_abq_hack25/R/sam_helpers.R')
+
+
+# Where did you put the data?
+data_dir <- "~/Documents/hackathon/LANL"
+
 
 # Get all metadata (from each day)
 metadata <- list()
 metafiles <- character()
-files <- list.files("LANL", pattern = "\\.txt$")
+files <- list.files(data_dir, pattern = "\\.txt$")
 for (file in files) {
-  cat(file.path("LANL", file), "\n")
+  cat(file.path(data_dir, file), "\n")
   metafiles <- c(metafiles, strsplit(file, "\\.")[[1]][1])
-  metadata <- c(metadata, list(fread(file.path("LANL", file), sep = "\t", skip = 6)))
+  metadata <- c(metadata, list(fread(file.path(data_dir, file), sep = "\t", skip = 6)))
 }
 
 # all days list of seizure start times
@@ -22,6 +30,7 @@ for(i in 1:length(metafiles)){
     | (metadata[[i]][["Annotation"]] == "Seizure starts ")
   ]
 }
+
 
 # all days list of seizure end times
 seizure_end_times = list()
@@ -37,7 +46,7 @@ alldays <- list()
 for (session in metafiles) {
   cat(session, "\n")
   alldays <- c(alldays, list(load_binary_multiple_segments(
-    file_path = file.path("LANL", paste0(session, "_allCh.dat")),
+    file_path = file.path(data_dir, paste0(session, "_allCh.dat")),
     n_chan = 4,  # DO NOT CHANGE # number of channels in the file (4)
     sample_rate = 2000,  # DO NOT CHANGE # samples/second (2000 Hz)
     offset_times = 0,  # offset in seconds, out of 86400 (24 hours), can be list

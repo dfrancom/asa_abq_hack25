@@ -1,63 +1,83 @@
 library(data.table)
+library(pracma)
 
-source('sam_helpers.R')
 
-# Get all metadata (from each day)
+# Source asa_abq_hack25 R script dependencies (in order).
+source('~/Documents/hackathon/asa_abq_hack25/R/binary_io.R')
+source('~/Documents/hackathon/asa_abq_hack25/R/sam_helpers.R')
+
+
+# Where did you put the data?
+data_dir <- "~/Documents/hackathon/LANL"
+
+
+# Where do you want to save features as a .csv?
+save_dir <- "~/Documents/hackathon"
+
+
+# Get all metadata from all sessions
+sessions <- character()
 metadata <- list()
-metafiles <- list()
-files <- list.files("LANL", pattern = "\\.txt$", full.names = TRUE)
-
-for (file in files) {
-  metafiles <- c(metafiles, strsplit(basename(file), "\\.")[[1]][1])
+files <- list.files(data_dir, pattern = "\\.txt$", full.names = TRUE)
+for(file in files){
+  sessions <- c(sessions, strsplit(basename(file), "\\.")[[1]][1])
   metadata <- c(metadata, list(fread(file, skip = 6)))
 }
+n_sessions <- length(sessions)
+
 
 # all days list of seizure start times
-seizure_start_times = list()
-for(i in 1:length(metafiles)){
-  seizure_start_times[[i]] <- metadata[[i]][["Time From Start"]][
-    (metadata[[i]][["Annotation"]] == "Seizure starts")
-    | (metadata[[i]][["Annotation"]] == "Seizure starts ")
-  ]
+seizure_start_times = vector('list', n_sessions)
+for(i in 1:n_sessions){
+  annotation <- metadata[[i]][["Annotation"]]
+  seizure_start <- annotation %in% c("Seizure starts", "Seizure starts ")
+  seizure_start_times[[i]] <- metadata[[i]][["Time From Start"]][seizure_start]
 }
+
 
 # all days list of seizure end times
-seizure_end_times = list()
-for(i in 1:length(metafiles)){
-  seizure_end_times[[i]] <- metadata[[i]][["Time From Start"]][
-    (metadata[[i]][["Annotation"]] == "Seizure ends")
-    | (metadata[[i]][["Annotation"]] == "Seizure ends ")
-  ]
+seizure_end_times <- vector('list', n_sessions)
+for(i in 1:n_sessions){
+  annotation <- metadata[[i]][["Annotation"]]
+  seizure_end <- annotation %in% c("Seizure ends", "Seizure ends ")
+  seizure_end_times[[i]] <- metadata[[i]][["Time From Start"]][seizure_end]
 }
 
-# More than 1 hour before seizure (but after last seizure)
+
+# Get features for data collected MORE than 1 hour before seizure
+# (but more than 10 minutes after last seizure)
 time_before <- 3600  # 1 hr before seizure
 features <- list()
-
-for (session in metafiles) {
-  this_session <- which(session == metafiles)
-  for (sz_ind in 1:length(seizure_start_times[[this_session]])) {
-    if (sz_ind == 1) {
+for(i in 1:n_sessions){
+  for(sz_ind in 1:length(seizure_start_times[[i]])){
+    if(sz_ind == 1){
       last_end_time <- 0  # end time of last seizure
-    } else {
-      last_end_time <- seizure_end_times[[this_session]][sz_ind - 1] + 600  # 10 min after end of last seizure
+    }else{
+      last_end_time <- seizure_end_times[[i]][sz_ind - 1] + 600  # 10 min after end of last seizure
     }
     
-    time_before_this <- seizure_start_times[[this_session]][sz_ind] - time_before  # e.g., 1 hr before current seizure
-    if (last_end_time > time_before_this) next
+    time_before_this <- seizure_start_times[[i]][sz_ind] - time_before  # e.g., 1 hr before current seizure
+    if(last_end_time > time_before_this) next
     
-    starts <- .get_x_pct_time_of_interval(
+    starts <- .get_x_pct_time_of_interval( # function defined in 'sam_helpers.R'
       start_time = last_end_time,
-      end_time = time_before_this,
-      segment_length = 1,
-      pct = 0.005
+      end_time = time_before_this, 
+      segment_length = 1, # length of segment to featurize
+      pct = 0.005 # proportion of segments to extract
     )
     
-    dat <- load_dat(session, offset_times = starts, duration_time = 1)
+    dat <- load_dat( # function defined in 'sam_helpers.R'
+      data_dir,
+      sessions[i],
+      offset_times = starts,
+      duration_time = 1
+    ) 
     
-    for (i in 1:length(starts)) {
-      temp <- compute_wavelet_gabor(
-        signal = dat[i, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
+    for(j in 1:length(starts)){
+      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
+        signal = dat[j, , 1],
+        fs = 2000,
+        freqs = c(4, 8, 16, 32)
       )
       features <- c(features, list(apply(abs(temp), 2, mean)))
     }
@@ -65,35 +85,40 @@ for (session in metafiles) {
 }
 features_longbefore <- do.call(rbind, features)
 
-# Less than 1 hour before seizure (but after last seizure)
-features <- list()
 
-for (session in metafiles) {
-  this_session <- which(session == metafiles)
-  for (sz_ind in seq_along(seizure_start_times[[this_session]])) {
+# Get features for data collected LESS than 1 hour before seizure
+# (and more than 10 minutes after last seizure)
+features <- list()
+for(i in 1:n_sessions){
+  for (sz_ind in seq_along(seizure_start_times[[i]])) {
     if (sz_ind == 1) {
       last_end_time <- 0  # end time of last seizure
     } else {
-      last_end_time <- seizure_end_times[[this_session]][sz_ind - 1] + 600  # 10 min after end of last seizure
+      last_end_time <- seizure_end_times[[i]][sz_ind - 1] + 600  # 10 min after end of last seizure
     }
     
-    this_start_time <- seizure_start_times[[this_session]][sz_ind]
+    this_start_time <- seizure_start_times[[i]][sz_ind]
     hour_before_this <- this_start_time - 3600
     if (last_end_time > hour_before_this) hour_before_this <- last_end_time
     if (last_end_time > this_start_time) next
     
-    starts <- .get_x_pct_time_of_interval(
+    starts <- .get_x_pct_time_of_interval( # function defined in 'sam_helpers.R'
       start_time = hour_before_this,
       end_time = this_start_time,
-      segment_length = 1,
-      pct = 0.015
+      segment_length = 1, # length of segment to featurize
+      pct = 0.015 # proportion of segments to extract
     )
     
-    dat <- load_dat(session, offset_times = starts, duration_time = 1)
+    dat <- load_dat( # function defined in 'sam_helpers.R'
+      data_dir,
+      sessions[i],
+      offset_times = starts,
+      duration_time = 1
+    )     
     
-    for (i in 1:length(starts)) {
-      temp <- compute_wavelet_gabor(
-        signal = dat[i, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
+    for (j in 1:length(starts)) {
+      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
+        signal = dat[j, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
       )
       features <- c(features, list(apply(abs(temp), 2, mean)))
     }
@@ -101,24 +126,28 @@ for (session in metafiles) {
 }
 features_hourbefore <- do.call(rbind, features)
 
-# During seizure
-features <- list()
 
-for (session in metafiles) {
-  this_session <- which(session == metafiles)
-  for (sz_ind in 1:length(seizure_start_times[[this_session]])) {
-    starts <- .get_x_pct_time_of_interval(
-      start_time = seizure_start_times[[this_session]][sz_ind],
-      end_time = seizure_end_times[[this_session]][sz_ind],
-      segment_length = 1,
-      pct = 0.95
+# Get features for data collected DURING a seizure
+features <- list()
+for(i in 1:n_sessions){
+  for (sz_ind in 1:length(seizure_start_times[[i]])) {
+    starts <- .get_x_pct_time_of_interval( # function defined in 'sam_helpers.R'
+      start_time = seizure_start_times[[i]][sz_ind],
+      end_time = seizure_end_times[[i]][sz_ind],
+      segment_length = 1, # length of segment to featurize
+      pct = 0.95 # proportion of segments to extract
     )
     
-    dat <- load_dat(session, offset_times = starts, duration_time = 1)
+    dat <- load_dat( # function defined in 'sam_helpers.R'
+      data_dir,
+      sessions[i],
+      offset_times = starts,
+      duration_time = 1
+    ) 
     
-    for (i in seq_along(starts)) {
-      temp <- compute_wavelet_gabor(
-        signal = dat[i, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
+    for (j in seq_along(starts)) {
+      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
+        signal = dat[j, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
       )
       features <- c(features, list(apply(abs(temp), 2, mean)))
     }
@@ -126,34 +155,38 @@ for (session in metafiles) {
 }
 features_during <- do.call(rbind, features)
 
-# <10 min after seizure
-features <- list()
 
-for (session in metafiles) {
-  this_session <- which(session == metafiles)
-  for (sz_ind in 1:length(seizure_start_times[[this_session]])) {
-    end_time <- seizure_end_times[[this_session]][sz_ind]
+# Get features for data collected less than 10 minutes after a seizure
+features <- list()
+for(i in 1:n_sessions){
+  for (sz_ind in 1:length(seizure_start_times[[i]])) {
+    end_time <- seizure_end_times[[i]][sz_ind]
     end_time_plus <- end_time + 600
-    if (sz_ind != length(seizure_start_times[[this_session]])) {
-      next_start_time <- seizure_start_times[[this_session]][sz_ind + 1]
+    if (sz_ind != length(seizure_start_times[[i]])) {
+      next_start_time <- seizure_start_times[[i]][sz_ind + 1]
     } else {
       next_start_time <- 1e10
     }
     if (end_time_plus > next_start_time) end_time_plus <- next_start_time
     if (end_time_plus > (3600 * 24)) end_time_plus <- 3600 * 24
     
-    starts <- .get_x_pct_time_of_interval(
+    starts <- .get_x_pct_time_of_interval( # function defined in 'sam_helpers.R'
       start_time = end_time,
       end_time = end_time_plus,
-      segment_length = 1,
-      pct = 0.05
+      segment_length = 1, # length of segment to featurize
+      pct = 0.05 # proportion of segments to extract
     )
     
-    dat <- load_dat(session, offset_times = starts, duration_time = 1)
+    dat <- load_dat( # function defined in 'sam_helpers.R'
+      data_dir,
+      sessions[i],
+      offset_times = starts,
+      duration_time = 1
+    )
     
-    for (i in seq_along(starts)) {
-      temp <- compute_wavelet_gabor(
-        signal = dat[i, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
+    for (j in seq_along(starts)) {
+      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
+        signal = dat[j, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
       )
       features <- c(features, list(apply(abs(temp), 2, mean)))
     }
@@ -161,7 +194,8 @@ for (session in metafiles) {
 }
 features_after <- do.call(rbind, features)
 
-# Combine features and labels
+
+# Combine features X and labels y
 X <- rbind(features_longbefore, features_hourbefore, features_during, features_after)
 y <- c(
   rep(0, nrow(features_longbefore)),
@@ -170,5 +204,10 @@ y <- c(
   rep(3, nrow(features_after))
 )
 
+
 # Save to CSV
-write.csv(cbind(X, y), "features.csv", row.names = FALSE)
+write.csv(
+  cbind(X, y),
+  file.path(save_dir, "features.csv"),
+  row.names = FALSE
+)

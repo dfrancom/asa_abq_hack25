@@ -1,12 +1,22 @@
-source('sam_helpers.R')
 library(data.table)
+library(pracma)
+
+
+# Source asa_abq_hack25 R script dependencies (in order).
+source('~/Documents/hackathon/asa_abq_hack25/R/binary_io.R')
+source('~/Documents/hackathon/asa_abq_hack25/R/sam_helpers.R')
+
+
+# Where did you put the data?
+data_dir <- "~/Documents/hackathon/LANL"
+
 
 ##
 # this function allows you to read in a subset of the data
 # mouse id: AC75a-5 DOB 072519
 # date/time: 2020-03-23_17_30_04
 day1 = load_binary_multiple_segments(
-  file_path="LANL/AC75a-5_DOB_072519_TS_2020-03-24_17_30_04_allCh.dat",
+  file_path=fil.path(data_dir, "AC75a-5_DOB_072519_TS_2020-03-24_17_30_04_allCh.dat"),
   n_chan=4,  # DO NOT CHANGE # number of channels in the file (4)
   sample_rate=2000,  # DO NOT CHANGE # samples/second (2000 Hz)
   offset_times=c(0),  # offset in seconds, out of 86400 (24 hours), can be list
@@ -39,14 +49,14 @@ rm(day1) # delete when you're done with it
 # get all metadata (from each day)
 metafiles = character()
 metadata = list()
-for(f in list.files("LANL")){
+for(f in list.files(data_dir)){
   if(grepl('.txt', f)){
-    print(file.path("LANL", f))
+    print(file.path(data_dir, f))
     metafiles <- c(
       metafiles,
       strsplit(f, '\\.')[[1]][1]
     )
-    metadata[[f]] <- fread(file.path("LANL", f), skip=6)
+    metadata[[f]] <- fread(file.path(data_dir, f), skip=6)
   }
 }
 
@@ -58,7 +68,7 @@ day1_seizure_start_times = metadata[[6]][["Time From Start"]][
 
 # read 20 seconds around seizure start (for first day)
 day1seizures = load_binary_multiple_segments(
-  file_path=file.path("LANL", paste0(metafiles[[6]], "_allCh.dat")),
+  file_path=file.path(data_dir, paste0(metafiles[[6]], "_allCh.dat")),
   n_chan=4,  # DO NOT CHANGE
   sample_rate=2000,  # DO NOT CHANGE
   offset_times=day1_seizure_start_times - 20,  # offset in seconds
@@ -82,7 +92,7 @@ rm(day1seizures)
 alldays = list()
 for(name in metafiles){
   alldays[[name]] <- load_binary_multiple_segments(
-    file_path=file.path("LANL", paste0(name, "_allCh.dat")),
+    file_path=file.path(data_dir, paste0(name, "_allCh.dat")),
     n_chan=4,  # DO NOT CHANGE # number of channels in the file (4)
     sample_rate=2000,  # DO NOT CHANGE # samples/second (2000 Hz)
     offset_times=c(0),  # offset in seconds, out of 86400 (24 hours), can be list
@@ -123,7 +133,7 @@ for(name in metafiles){
   this_day = which(metafiles == name) 
   
   allseizures[[name]] <- load_binary_multiple_segments(
-      file_path=file.path("LANL", paste0(name, "_allCh.dat")),
+      file_path=file.path(data_dir, paste0(name, "_allCh.dat")),
       n_chan=4,  # DO NOT CHANGE
       sample_rate=2000,  # DO NOT CHANGE
       offset_times= seizure_start_times[[this_day]] - 20,  # offset in seconds
@@ -157,7 +167,7 @@ for(j in 1:length(metafiles)){
 
 # get some 1 second set of data
 test = load_binary_multiple_segments(
-  file_path="LANL/AC75a-5_DOB_072519_TS_2020-03-24_17_30_04_allCh.dat",
+  file_path=file.path(data_dir, "AC75a-5_DOB_072519_TS_2020-03-24_17_30_04_allCh.dat"),
   n_chan=4,  # DO NOT CHANGE # number of channels in the file (4)
   sample_rate=2000,  # DO NOT CHANGE # samples/second (2000 Hz)
   offset_times=c(1000),  # offset in seconds, out of 86400 (24 hours), can be list
@@ -245,7 +255,7 @@ for(session in metafiles){
     )
     
     dat = load_binary_multiple_segments(
-      file_path=file.path("LANL", paste0(session, "_allCh.dat")),
+      file_path=file.path(data_dir, paste0(session, "_allCh.dat")),
       n_chan=4,  # DO NOT CHANGE
       sample_rate=2000,  # DO NOT CHANGE
       offset_times=starts,  # offset in seconds
@@ -295,7 +305,7 @@ for(session in metafiles){
     )
     
     dat = load_binary_multiple_segments(
-      file_path=file.path("LANL", paste0(session, "_allCh.dat")),
+      file_path=file.path(data_dir, paste0(session, "_allCh.dat")),
       n_chan=4,  # DO NOT CHANGE
       sample_rate=2000,  # DO NOT CHANGE
       offset_times=starts,  # offset in seconds
@@ -331,7 +341,7 @@ for(session in metafiles){
     )
     
     dat = load_binary_multiple_segments(
-      file_path=file.path("LANL", paste0(session, "_allCh.dat")),
+      file_path=file.path(data_dir, paste0(session, "_allCh.dat")),
       n_chan=4,  # DO NOT CHANGE
       sample_rate=2000,  # DO NOT CHANGE
       offset_times=starts,  # offset in seconds
@@ -383,7 +393,7 @@ for(session in metafiles){
     )
     
     dat <- load_binary_multiple_segments(
-      file_path=file.path("LANL", paste0(session, "_allCh.dat")),
+      file_path=file.path(data_dir, paste0(session, "_allCh.dat")),
       n_chan = 4,  # DO NOT CHANGE
       sample_rate = 2000,  # DO NOT CHANGE
       offset_times = starts,  # offset in seconds

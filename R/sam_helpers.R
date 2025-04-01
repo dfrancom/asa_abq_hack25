@@ -1,15 +1,15 @@
 library(pracma)
 
-source('binary_io.R') # Functions to read in data
 
 load_dat <- function(
+  data_dir,
   session,
   offset_times=c(0),
   duration_time=c(3600 * 24 - 50),
   channels=1:4
 ){
   out = load_binary_multiple_segments(
-    file_path=file.path("LANL", paste0(session, "_allCh.dat")),
+    file_path=file.path(data_dir, paste0(session, "_allCh.dat")),
     n_chan=4,  # DO NOT CHANGE # number of channels in the file (4)
     sample_rate=2000,  # DO NOT CHANGE # samples/second (2000 Hz)
     offset_times=offset_times,  # offset in seconds, out of 86400 (24 hours), can be list
