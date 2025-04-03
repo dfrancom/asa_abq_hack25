@@ -57,8 +57,9 @@ for(i in 1:n_sessions){
     precision = "integer",
     channels = 1:4  # list of channels to return
   )
+  mode(raw_dat[[k]])<-'integer' # option 1: 30 GB
+  #raw_dat[[k]]<-ff::as.short(raw_dat[[k]]) # option 2: 15 GB but limited math operations?
 }
-
 
 # Categorize each segment
 # Categories:
