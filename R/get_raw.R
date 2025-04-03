@@ -1,3 +1,5 @@
+# This script shows how to extract the raw data
+
 library(data.table)
 library(pracma)
 library(ggplot2)
@@ -107,7 +109,12 @@ rm(temp, tt) # delete when finished
 
 
 # Number of segments in each category
-table(cat_time[[1]])
+# table(cat_time[[1]]) # slow
+sum(cat_time[[1]] == 0) # 0: >1hr until next seizure
+sum(cat_time[[1]] == 1) # 1: <1hr until next seizure
+sum(cat_time[[1]] == 2) # 2: seizure happening
+sum(cat_time[[1]] == 3) # 3: <10min after last seizure
+sum(cat_time[[1]] == -1) # -1: None of the above
 
 
 # Plot category for each segment

@@ -1,3 +1,5 @@
+# This script shows examples of reading and processing data
+
 library(data.table)
 library(pracma)
 
@@ -16,21 +18,24 @@ data_dir <- "~/Documents/hackathon/LANL"
 # mouse id: AC75a-5 DOB 072519
 # date/time: 2020-03-23_17_30_04
 day1 = load_binary_multiple_segments(
-  file_path=fil.path(data_dir, "AC75a-5_DOB_072519_TS_2020-03-24_17_30_04_allCh.dat"),
+  file_path=file.path(data_dir, "AC75a-5_DOB_072519_TS_2020-03-24_17_30_04_allCh.dat"),
   n_chan=4,  # DO NOT CHANGE # number of channels in the file (4)
   sample_rate=2000,  # DO NOT CHANGE # samples/second (2000 Hz)
   offset_times=c(0),  # offset in seconds, out of 86400 (24 hours), can be list
   duration_time=3600 * 24 - 50,  # duration in seconds, not sure why I need -50 on day 1
   channels=1:4  # list of channels to return
 )
-# ws.shape: [offset, time, channel]
+dim(day1) # (offset, time, chan)
+
 
 # size in Gb
 day1_size_gb <- format(object.size(day1), units='Gb')
 print(day1_size_gb) # delete when you're done with it
 
+
 # first second
 plot(day1[1, 1:2000, 1], type = 'l')
+
 
 # the four channels
 plot(
@@ -42,33 +47,32 @@ lines(day1[1, 1:100000, 2] + 150, col = 2)
 lines(day1[1, 1:100000, 3] + 300, col = 3)
 lines(day1[1, 1:100000, 4] + 450, col = 4)
 
+
 # scatterplot pairs
 pairs(day1[1, 90001:100000, ], labels = paste0('ch', 1:4))
-rm(day1) # delete when you're done with it
+# rm(day1) # delete when you're done with it
 
-# get all metadata (from each day)
-metafiles = character()
-metadata = list()
-for(f in list.files(data_dir)){
-  if(grepl('.txt', f)){
-    print(file.path(data_dir, f))
-    metafiles <- c(
-      metafiles,
-      strsplit(f, '\\.')[[1]][1]
-    )
-    metadata[[f]] <- fread(file.path(data_dir, f), skip=6)
-  }
+
+# Get all metadata from all sessions
+sessions <- character()
+metadata <- list()
+files <- list.files(data_dir, pattern = "\\.txt$", full.names = TRUE)
+for(file in files){
+  sessions <- c(sessions, strsplit(basename(file), "\\.")[[1]][1])
+  metadata <- c(metadata, list(fread(file, skip = 6)))
 }
+n_sessions <- length(sessions)
+
 
 # first day seizure start times
-day1_seizure_start_times = metadata[[6]][["Time From Start"]][
-  (metadata[[6]][["Annotation"]] == "Seizure starts")
-  | (metadata[[6]][["Annotation"]] == "Seizure starts ")
-]
+day1_annotation <- metadata[[1]][["Annotation"]]
+day1_seizure_start <- day1_annotation %in% c("Seizure starts", "Seizure starts ")
+day1_seizure_start_times <- metadata[[1]][["Time From Start"]][day1_seizure_start]
+
 
 # read 20 seconds around seizure start (for first day)
 day1seizures = load_binary_multiple_segments(
-  file_path=file.path(data_dir, paste0(metafiles[[6]], "_allCh.dat")),
+  file_path=file.path(data_dir, paste0(sessions[1], "_allCh.dat")),
   n_chan=4,  # DO NOT CHANGE
   sample_rate=2000,  # DO NOT CHANGE
   offset_times=day1_seizure_start_times - 20,  # offset in seconds
@@ -76,6 +80,7 @@ day1seizures = load_binary_multiple_segments(
   precision="integer",
   channels=1:4  # list of channels to return
 )
+
 
 # channel 1 across 7 seizures - seizure starts at middle
 plot(
@@ -86,11 +91,12 @@ plot(
 for(i in 2:dim(day1seizures)[1]){
   lines(day1seizures[i, , 1] + 200 * (i-1), col = i)
 }
-rm(day1seizures)
+# rm(day1seizures) # delete when you're done
 
-# all data for this mouse, MAY NOT HAVE SPACE TO LOAD, BUT THAT'S OK
+
+# all data for this mouse, MAY NOT HAVE SPACE TO LOAD ALL SESSIONS, BUT THAT'S OK
 alldays = list()
-for(name in metafiles){
+for(name in sessions){
   alldays[[name]] <- load_binary_multiple_segments(
     file_path=file.path(data_dir, paste0(name, "_allCh.dat")),
     n_chan=4,  # DO NOT CHANGE # number of channels in the file (4)
@@ -105,38 +111,36 @@ for(name in metafiles){
 
 # size in Gb
 alldays_size_gb <- format(object.size(alldays), units='Gb')
-print(alldays_size_gb) # delete when you're done with it
-rm(alldays)
+print(alldays_size_gb) 
+# rm(alldays) # delete when you're done with it
+
 
 # all days list of seizure start times
-seizure_start_times = list()
-for(i in 1:length(metafiles)){
-  seizure_start_times[[i]] <- metadata[[i]][["Time From Start"]][
-    (metadata[[i]][["Annotation"]] == "Seizure starts")
-    | (metadata[[i]][["Annotation"]] == "Seizure starts ")
-  ]
+seizure_start_times = vector('list', n_sessions)
+for(i in 1:n_sessions){
+  annotation <- metadata[[i]][["Annotation"]]
+  seizure_start <- annotation %in% c("Seizure starts", "Seizure starts ")
+  seizure_start_times[[i]] <- metadata[[i]][["Time From Start"]][seizure_start]
 }
 
 
 # all days list of seizure end times
-seizure_end_times = list()
-for(i in 1:length(metafiles)){
-  seizure_end_times[[i]] <- metadata[[i]][["Time From Start"]][
-      (metadata[[i]][["Annotation"]] == "Seizure ends")
-      | (metadata[[i]][["Annotation"]] == "Seizure ends ")
-    ]
+seizure_end_times <- vector('list', n_sessions)
+for(i in 1:n_sessions){
+  annotation <- metadata[[i]][["Annotation"]]
+  seizure_end <- annotation %in% c("Seizure ends", "Seizure ends ")
+  seizure_end_times[[i]] <- metadata[[i]][["Time From Start"]][seizure_end]
 }
+
 
 # 20 seconds around each seizure from each day
 allseizures = list()
-for(name in metafiles){
-  this_day = which(metafiles == name) 
-  
-  allseizures[[name]] <- load_binary_multiple_segments(
+for(i in 1:n_sessions){
+  allseizures[[i]] <- load_binary_multiple_segments(
       file_path=file.path(data_dir, paste0(name, "_allCh.dat")),
       n_chan=4,  # DO NOT CHANGE
       sample_rate=2000,  # DO NOT CHANGE
-      offset_times= seizure_start_times[[this_day]] - 20,  # offset in seconds
+      offset_times= seizure_start_times[[i]] - 20,  # offset in seconds
       duration_time=40,  # duration in seconds
       precision="integer",
       channels=1:4,  # list of channels to return
@@ -153,7 +157,7 @@ plot(
   xlim = c(1, dim(allseizures[[1]])[2]),
   ylim = range(allseizures) + c(0, k*sum(sapply(allseizures, function(s) dim(s)[1])))
 )
-for(j in 1:length(metafiles)){
+for(j in 1:length(sessions)){
   for(i in 1:dim(allseizures[[j]])[1]){
     
     lines(allseizures[[j]][i, , 1] + k - 100, col = m)
@@ -162,10 +166,11 @@ for(j in 1:length(metafiles)){
   }
 }
 
+
 #############################################################################################
 ## test out getting features
 
-# get some 1 second set of data
+# get some 1 second segments of data
 test = load_binary_multiple_segments(
   file_path=file.path(data_dir, "AC75a-5_DOB_072519_TS_2020-03-24_17_30_04_allCh.dat"),
   n_chan=4,  # DO NOT CHANGE # number of channels in the file (4)
@@ -221,201 +226,169 @@ features_gabor <- colMeans(abs(temp))
 features_gabor
 
 
+
+#######################################################################
 # for each day
 # for each seizure
 # for each of four classes: (>1hr before, 0-1 hour, seizure, <10 min after seizure)
 # pick out number of 1 second windows to use
 # for each time window, get wavelet coefficients
 
-
-#######################################################################
-## more than 1 hour before seizure (but after last seizure)
-time_before = 3600  # 1 hr before seizure
-features = list()
-for(session in metafiles){
-  this_session = which(session == metafiles)
-  print(session)
-  
-  for(sz_ind in 1:length(seizure_start_times[[this_session]])){
-    if(sz_ind == 1){
-      last_end_time = 0  # end time of last seizure
-    }else{
-      last_end_time = seizure_end_times[[this_session]][sz_ind - 1] + 600 # 10 min after end of last seizure
-    }
-    
-    time_before_this = seizure_start_times[[this_session]][sz_ind] - time_before # e.g., 1 hr before current seizure
-    if(last_end_time > time_before_this){
-      next
-    }
-    starts = .get_x_pct_time_of_interval(
-      start_time=last_end_time,
-      end_time=time_before_this,
-      segment_length=1,
-      pct=0.01
-    )
-    
-    dat = load_binary_multiple_segments(
-      file_path=file.path(data_dir, paste0(session, "_allCh.dat")),
-      n_chan=4,  # DO NOT CHANGE
-      sample_rate=2000,  # DO NOT CHANGE
-      offset_times=starts,  # offset in seconds
-      duration_time=1,  # duration in seconds
-      precision="integer",
-      channels=1:4,  # list of channels to return
-    )
-    
-    for(i in 1:length(starts)){
-      temp = compute_wavelet_gabor(
-        signal=dat[i, , 1], fs=2000, freqs=c(4, 8, 16, 32)
-      )
-      features[[length(features)+1]] <- apply(abs(temp), 2, mean)
-    }
-  }
-}
-features_longbefore = do.call(rbind, features)
-
-
-#######################################################################
-## less than 1 hour before seizure (but after last seizure)
-features = list()
-for(session in metafiles){
-  this_session = which(session == metafiles)
-  print(session)
-  
-  for(sz_ind in 1:length(seizure_start_times[[this_session]])){
-    if(sz_ind == 1){
-      last_end_time = 0  # end time of last seizure
-    }else{
-      last_end_time = seizure_end_times[[this_session]][sz_ind - 1] + 600 # 10 min after end of last seizure
-    }
-    
-    this_start_time = seizure_start_times[[this_session]][sz_ind]
-    time_before_this = this_start_time - time_before # e.g., 1 hr before current seizure
-    if(last_end_time > this_start_time){
-      next
-    }
-    if(last_end_time > time_before_this){
-      time_before_this = last_end_time 
-    }
-    starts = .get_x_pct_time_of_interval(
-      start_time=time_before_this,
-      end_time=this_start_time,
-      segment_length=1,
-      pct=0.05
-    )
-    
-    dat = load_binary_multiple_segments(
-      file_path=file.path(data_dir, paste0(session, "_allCh.dat")),
-      n_chan=4,  # DO NOT CHANGE
-      sample_rate=2000,  # DO NOT CHANGE
-      offset_times=starts,  # offset in seconds
-      duration_time=1,  # duration in seconds
-      precision="integer",
-      channels=1:4,  # list of channels to return
-    )
-    
-    for(i in 1:length(starts)){
-      temp = compute_wavelet_gabor(
-        signal=dat[i, , 1], fs=2000, freqs=c(4, 8, 16, 32)
-      )
-      features[[length(features)+1]] <- apply(abs(temp), 2, mean)
-    }
-  }
-}
-features_hourbefore = do.call(rbind, features)
-
-
-#######################################################################
-## during seizure
-features = list()
-for(session in metafiles){
-  this_session = which(session == metafiles)
-  print(session)
-  
-  for(sz_ind in 1:length(seizure_start_times[[this_session]])){
-    starts = .get_x_pct_time_of_interval(
-      start_time=seizure_start_times[[this_session]][sz_ind],
-      end_time=seizure_end_times[[this_session]][sz_ind],
-      segment_length=1,
-      pct=0.95
-    )
-    
-    dat = load_binary_multiple_segments(
-      file_path=file.path(data_dir, paste0(session, "_allCh.dat")),
-      n_chan=4,  # DO NOT CHANGE
-      sample_rate=2000,  # DO NOT CHANGE
-      offset_times=starts,  # offset in seconds
-      duration_time=1,  # duration in seconds
-      precision="integer",
-      channels=1:4,  # list of channels to return
-    )
-    
-    for(i in 1:length(starts)){
-      temp = compute_wavelet_gabor(
-        signal=dat[i, , 1], fs=2000, freqs=c(4, 8, 16, 32)
-      )
-      features[[length(features)+1]] <- apply(abs(temp), 2, mean)
-    }
-  }
-}
-features_during = do.call(rbind, features)
-
-
-
-#######################################################################
-## <10 min after seizure
+# Get features for data collected MORE than 1 hour before seizure
+# (but more than 10 minutes after last seizure)
+time_before <- 3600  # 1 hr before seizure
 features <- list()
-for(session in metafiles){
-  this_session <- which(session == metafiles)
-  print(session)
-  
-  for(sz_ind in 1:length(seizure_start_times[[this_session]])){
-    end_time <- seizure_end_times[[this_session]][sz_ind]
+for(i in 1:n_sessions){
+  for(sz_ind in 1:length(seizure_start_times[[i]])){
+    if(sz_ind == 1){
+      last_end_time <- 0  # end time of last seizure
+    }else{
+      last_end_time <- seizure_end_times[[i]][sz_ind - 1] + 600  # 10 min after end of last seizure
+    }
+    
+    time_before_this <- seizure_start_times[[i]][sz_ind] - time_before  # e.g., 1 hr before current seizure
+    if(last_end_time > time_before_this) next
+    
+    starts <- .get_x_pct_time_of_interval( # function defined in 'sam_helpers.R'
+      start_time = last_end_time,
+      end_time = time_before_this, 
+      segment_length = 1, # length of segment to featurize
+      pct = 0.005 # proportion of segments to extract
+    )
+    
+    dat <- load_dat( # function defined in 'sam_helpers.R'
+      data_dir,
+      sessions[i],
+      offset_times = starts,
+      duration_time = 1
+    ) 
+    
+    for(j in 1:length(starts)){
+      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
+        signal = dat[j, , 1],
+        fs = 2000,
+        freqs = c(4, 8, 16, 32)
+      )
+      features <- c(features, list(apply(abs(temp), 2, mean)))
+    }
+  }
+}
+features_longbefore <- do.call(rbind, features)
+
+
+# Get features for data collected LESS than 1 hour before seizure
+# (and more than 10 minutes after last seizure)
+features <- list()
+for(i in 1:n_sessions){
+  for (sz_ind in seq_along(seizure_start_times[[i]])) {
+    if (sz_ind == 1) {
+      last_end_time <- 0  # end time of last seizure
+    } else {
+      last_end_time <- seizure_end_times[[i]][sz_ind - 1] + 600  # 10 min after end of last seizure
+    }
+    
+    this_start_time <- seizure_start_times[[i]][sz_ind]
+    hour_before_this <- this_start_time - 3600
+    if (last_end_time > hour_before_this) hour_before_this <- last_end_time
+    if (last_end_time > this_start_time) next
+    
+    starts <- .get_x_pct_time_of_interval( # function defined in 'sam_helpers.R'
+      start_time = hour_before_this,
+      end_time = this_start_time,
+      segment_length = 1, # length of segment to featurize
+      pct = 0.015 # proportion of segments to extract
+    )
+    
+    dat <- load_dat( # function defined in 'sam_helpers.R'
+      data_dir,
+      sessions[i],
+      offset_times = starts,
+      duration_time = 1
+    )     
+    
+    for (j in 1:length(starts)) {
+      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
+        signal = dat[j, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
+      )
+      features <- c(features, list(apply(abs(temp), 2, mean)))
+    }
+  }
+}
+features_hourbefore <- do.call(rbind, features)
+
+
+# Get features for data collected DURING a seizure
+features <- list()
+for(i in 1:n_sessions){
+  for (sz_ind in 1:length(seizure_start_times[[i]])) {
+    starts <- .get_x_pct_time_of_interval( # function defined in 'sam_helpers.R'
+      start_time = seizure_start_times[[i]][sz_ind],
+      end_time = seizure_end_times[[i]][sz_ind],
+      segment_length = 1, # length of segment to featurize
+      pct = 0.95 # proportion of segments to extract
+    )
+    
+    dat <- load_dat( # function defined in 'sam_helpers.R'
+      data_dir,
+      sessions[i],
+      offset_times = starts,
+      duration_time = 1
+    ) 
+    
+    for (j in seq_along(starts)) {
+      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
+        signal = dat[j, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
+      )
+      features <- c(features, list(apply(abs(temp), 2, mean)))
+    }
+  }
+}
+features_during <- do.call(rbind, features)
+
+
+# Get features for data collected less than 10 minutes after a seizure
+features <- list()
+for(i in 1:n_sessions){
+  for (sz_ind in 1:length(seizure_start_times[[i]])) {
+    end_time <- seizure_end_times[[i]][sz_ind]
     end_time_plus <- end_time + 600
-    if(sz_ind != length(seizure_start_times[[this_session]])){
-      next_start_time <- seizure_start_times[[this_session]][sz_ind + 1]
+    if (sz_ind != length(seizure_start_times[[i]])) {
+      next_start_time <- seizure_start_times[[i]][sz_ind + 1]
     } else {
       next_start_time <- 1e10
     }
-    if (end_time_plus > next_start_time) {
-      end_time_plus <- next_start_time
-    }
+    if (end_time_plus > next_start_time) end_time_plus <- next_start_time
+    if (end_time_plus > (3600 * 24)) end_time_plus <- 3600 * 24
     
-    if (end_time_plus > (3600 * 24)) {
-      end_time_plus <- 3600 * 24
-    }
-    
-    starts <- .get_x_pct_time_of_interval(
+    starts <- .get_x_pct_time_of_interval( # function defined in 'sam_helpers.R'
       start_time = end_time,
       end_time = end_time_plus,
-      segment_length = 1,
-      pct = 0.05
+      segment_length = 1, # length of segment to featurize
+      pct = 0.05 # proportion of segments to extract
     )
     
-    dat <- load_binary_multiple_segments(
-      file_path=file.path(data_dir, paste0(session, "_allCh.dat")),
-      n_chan = 4,  # DO NOT CHANGE
-      sample_rate = 2000,  # DO NOT CHANGE
-      offset_times = starts,  # offset in seconds
-      duration_time = 1,  # duration in seconds
-      precision = "integer",
-      channels = 1:4  # list of channels to return
+    dat <- load_dat( # function defined in 'sam_helpers.R'
+      data_dir,
+      sessions[i],
+      offset_times = starts,
+      duration_time = 1
     )
     
-    for (i in seq_along(starts)) {
-      temp <- compute_wavelet_gabor(
-        signal = dat[i, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
+    for (j in seq_along(starts)) {
+      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
+        signal = dat[j, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
       )
-      features[[length(features)+1]] <- apply(abs(temp), 2, mean)
+      features <- c(features, list(apply(abs(temp), 2, mean)))
     }
   }
 }
-
 features_after <- do.call(rbind, features)
 
 
 # TODO: include other channels
 
+
+# Classification models
 library(randomForest)
 library(caret)
 library(ggplot2)
@@ -478,4 +451,4 @@ ggplot(data.frame(X_test[, 4], y_test), aes(x = X_test[, 4], y = y_test)) +
   ggtitle("Feature 4 vs Actual")
 
 # Save features and target to a CSV file
-write.csv(cbind(X, y), "features.csv", row.names = FALSE)
+write.csv(cbind(X, y), "~/Documents/hackathon/features.csv", row.names = FALSE)

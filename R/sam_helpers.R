@@ -1,3 +1,4 @@
+# These are helper functions used in 'get_features.R' and 'get_raw.R'
 library(pracma)
 
 
@@ -26,30 +27,29 @@ compute_wavelet_gabor <- function(
   freqs,
   xi=5  # only needed for Gabor
 ){
-  # """Computes one or multiple wavelet transforms of the input signal.
+  # Computes one or multiple wavelet transforms of the input signal.
   # 
-  #   Follows awt_freqlist.m from the buzzcode repository.
+  # Follows awt_freqlist.m from the buzzcode repository.
   # 
-  #   Parameters
-  #   ----------
-  #   `signal : np.ndarray`
-  #       The input signal. Only accepts 1D signals.
+  # Parameters
+  # ----------
+  # `signal : numeric vector`
+  #     The input signal. Only accepts 1D signals.
   # 
-  #   `fs : int or float`
-  #       The sampling frequency.
+  # `fs : numeric`
+  #     The sampling frequency.
   # 
-  #   `freqs : list or float`
-  #       The frequency or list of frequencies to compute.
+  # `freqs : numeric vector`
+  #     The frequency or list of frequencies to compute.
   # 
-  #   `xi : int`
-  #       The number of oscillations parameter, only needed for Gabor wavelet.
+  # `xi : integer`
+  #     The number of oscillations parameter, only needed for Gabor wavelet.
   # 
-  #   Returns
-  #   -------
-  #   `np.ndarray`
-  #       A numpy array of dim (len(freqs),len(signal))
-  #   """
-  # Make sure all types are correct
+  # Returns
+  # -------
+  # `matrix`
+  #     A matrix of dimensions (length(freqs), length(signal))
+  
   if(!(class(fs) %in% c('numeric', 'integer'))){
     stop("fs must be numeric or integer")
   }
@@ -107,29 +107,29 @@ compute_wavelet_gabor <- function(
   segment_length,  # in seconds
   pct  # proportion of times to sample
 ){
-  # """Get a randomly sampled 1d array of start times
+  # Get a randomly sampled 1d array of start times
   # 
-  #   Parameters
-  #   ----------
-  #   `start_time : float`
-  #       The beginning timestamp, in seconds, of the interval we sample from.
+  # Parameters
+  # ----------
+  # `start_time : numeric`
+  #     The beginning timestamp, in seconds, of the interval we sample from.
   # 
-  #   `end_time : float`
-  #       The end timestamp, in seconds, of the interval we sample from.
+  # `end_time : numeric`
+  #     The end timestamp, in seconds, of the interval we sample from.
   # 
-  #   `segment_length : float`
-  #       The time, in seconds of our samples.
+  # `segment_length : numeric`
+  #     The time, in seconds, of our samples.
   # 
-  #   `pct : float`
-  #       The proportion of segments to select, must be between 0 and 1.
+  # `pct : numeric`
+  #     The proportion of segments to select, must be between 0 and 1.
   # 
-  #   Returns
-  #   -------
-  #   `np.ndarray`
-  #       A 1d numpy array of start times for the segments (in seconds).
-  #       Together with the segment length, these fully define the segments
-  #       of interest to us that we would like to sample from.
-  #   """
+  # Returns
+  # -------
+  # `numeric vector`
+  #     A 1d numeric vector of start times for the segments (in seconds).
+  #     Together with the segment length, these fully define the segments
+  #     of interest to us that we would like to sample from.
+  
   if(!(end_time > start_time)){
     stop("Must have end_time > start_time")
   }

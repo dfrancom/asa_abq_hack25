@@ -19,26 +19,30 @@ get_n_samples_from_dur_fs <- function(dur, fs) {
     n_samples,
     precision
 ) {
-  # Helper. Loads a chunk of size (n_chan, n_samples) from buffered reader f.
-
+  # Helper. Loads a chunk of dimension (n_chan, n_samples) from buffered reader f.
+  # 
   # Parameters
   # ----------
-  # file : an io file buffered reader object
-  #   The binary file that you are reading.
-  
-  # n_chan : The number of channels.
-
-  # n_samples : The number of units (measurements) in the sample
-
-  # precision : The precision of the binary data,
-
+  # file : connection
+  #     The binary file that you are reading.
+  # 
+  # n_chan : integer
+  #     The number of channels.
+  # 
+  # n_samples : integer
+  #     The number of units (measurements) in the sample.
+  # 
+  # precision : character
+  #     The precision of the binary data.
+  # 
   # Returns
   # -------
-  # array
-  #   2D array of dim (n_chan, n_samples)
-  #   If the binary file contains an ascending sequence [0,1,2,3,...]
-  #   then calling .load_chunk with n_chan = 2 and n_samples = 3 will
-  #   result in the following array [[0, 1], [2, 3], [4, 5]]
+  # matrix
+  #     matrix of dimensions (n_chan, n_samples).
+  #     If the binary file contains an ascending sequence c(0,1,2,3,...)
+  #     then calling .load_chunk with n_chan = 2 and n_samples = 3 will
+  #     result in the following matrix: rbind(0:1, 2:3, 4:5).
+  
 
   bytes_per_sample <- switch(precision,
                              "integer" = 2,
@@ -64,23 +68,29 @@ get_n_samples_from_dur_fs <- function(dur, fs) {
     data_offset = 0
 ) {
   # Helper for load_binary; this is the method that contains the logic.
-
+  # 
   # Parameters
   # ----------
-  # file_path : Path to binary file with multiplexed data.
-
-  # n_chan : The number of channels.
-
-  # n_samples : The number of units (samples/measurements) per channel
-
-  # precision : The precision of the binary data
-
-  # data_offset : Exact index of starting time.
-
+  # file_path : character
+  #     Path to binary file with multiplexed data.
+  # 
+  # n_chan : integer
+  #     The number of channels.
+  # 
+  # n_samples : integer
+  #     The number of units (samples/measurements) per channel.
+  # 
+  # precision : character
+  #     The precision of the binary data.
+  # 
+  # data_offset : integer
+  #     Exact index of starting time.
+  # 
   # Returns
   # -------
-  # array
-  #   the loaded segment of size (n_samples , n_chan)
+  # matrix
+  #     The loaded segment of dimension (n_samples, n_chan).
+  
 
   total_n_samples <- n_samples * n_chan
   con <- file(file_path, "rb")
@@ -131,39 +141,49 @@ load_binary <- function(
     precision = "integer"
 ) {
   # Load data from a multiplexed binary file.
-
+  # 
   # Reading a subset of data can be done in two different manners:
   # either by specifying start time ("offset_time") and duration ("duration_time")
   # (more intuitive), or by indicating the position ("offset_size") and size of
   # the subset in terms of number of samples per channel ("duration_size")
   # (more accurate). The function will raise an error if both 'time' and 'size'
   # arguments are provided, this is to avoid ambiguity.
-
+  # 
   # Parameters
   # ----------
-  # file_path : Path to a .dat binary file
-
-  # n_chan : Number of data channels in the file (defaults to 1)
-
-  # sample_rate : Sample rate in Hz, (aka fs, frequency, sr is the MNE convention)
-  # Defaults to NULL, If NULL, must specify offset_size and duration_size
-
-  # offset_time : Position to start reading in seconds, (aka start_time)
-
-  # duration_time : Duration to read in seconds, (defaults to Inf)
-
-  # offset_size : Position to start reading in samples (per channel) 
-
-  # duration_size : Duration to read in number of samples (per channel)
-
-  # channels : Indices of channels to read from. If NULL, uses all chs.
-
-  # precision :  Sample precision, defaults to 'int16'.
-
+  # file_path : character
+  #     Path to a .dat binary file.
+  # 
+  # n_chan : integer
+  #     Number of data channels in the file (defaults to 1).
+  # 
+  # sample_rate : numeric
+  #     Sample rate in Hz, (aka fs, frequency, sr is the MNE convention).
+  #     Defaults to NULL. If NULL, must specify offset_size and duration_size.
+  # 
+  # offset_time : numeric
+  #     Position to start reading in seconds, (aka start_time).
+  # 
+  # duration_time : numeric
+  #     Duration to read in seconds, (defaults to Inf).
+  # 
+  # offset_size : integer
+  #     Position to start reading in samples (per channel).
+  # 
+  # duration_size : integer
+  #     Duration to read in number of samples (per channel).
+  # 
+  # channels : integer vector
+  #     Indices of channels to read from. If NULL, uses all channels.
+  # 
+  # precision : character
+  #     Sample precision, defaults to 'integer'.
+  # 
   # Returns
   # -------
-  # array
-  #   A 2d array containing the specified segment's data.
+  # matrix
+  #     A 2D matrix containing the specified segment's data.
+  
 
   # Checks to make sure the input is correct
   stopifnot(n_chan == as.integer(n_chan))
@@ -262,37 +282,47 @@ load_binary_multiple_segments <- function(
     precision = "integer"
 ) {
   # Load many segments of data from multiplexed binary file.
-
+  # 
   # Either provide a list of offset times and a duration time in seconds
   # OR provide a list of offset sizes and a duration size for the segment
   # in number of samples.
-
+  # 
   # Parameters
   # ----------
-  # file_path : Path to a .dat binary file
-
-  # n_chan : Number of data channels in the file (defaults to 1)
-
-  # sample_rate : Sample rate in Hz, (aka fs, frequency, sr is the MNE convention).
-  # Defaults to NULL. If NULL, must specify offset_size and duration_size
-
-  # offset_times : Positions to start reading in seconds, (aka start_time)
-
-  # duration_time : Duration to read in seconds (per channel)
-
-  # offset_sizes : Positions to start reading in num of samples.
-
-  # duration_size : Duration to read in number of samples (per channel)
-
-  # channels : Indices of channels to read from, defaults use all chs.
-
-  # precision : Sample precision, defaults to 'integer'.
-
+  # file_path : character
+  #     Path to a .dat binary file.
+  # 
+  # n_chan : integer
+  #     Number of data channels in the file (defaults to 1).
+  # 
+  # sample_rate : numeric
+  #     Sample rate in Hz, (aka fs, frequency, sr is the MNE convention).
+  #     Defaults to NULL. If NULL, must specify offset_size and duration_size.
+  # 
+  # offset_times : numeric vector
+  #     Positions to start reading in seconds, (aka start_time).
+  # 
+  # duration_time : numeric
+  #     Duration to read in seconds (per channel).
+  # 
+  # offset_sizes : integer vector
+  #     Positions to start reading in number of samples.
+  # 
+  # duration_size : integer
+  #     Duration to read in number of samples (per channel).
+  # 
+  # channels : integer vector
+  #     Indices of channels to read from. If NULL, uses all channels.
+  # 
+  # precision : character
+  #     Sample precision, defaults to 'integer'.
+  # 
   # Returns
   # -------
   # array
-  #   A 3d array containing the segments' data, with dim
-  #   (n_segments , n_samples , n_binary_channels)
+  #     A 3D array containing the segments' data, with dimensions
+  #     (n_segments, n_samples, n_binary_channels).
+  
 
   # If required, convert time to n_samples (aka sizes)
   if (length(offset_times) > 0) {

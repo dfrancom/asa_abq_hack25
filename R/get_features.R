@@ -1,3 +1,6 @@
+# This script shows how to extract a set of features from the raw data,
+# and outputs a .csv to use in a classification model
+
 library(data.table)
 library(pracma)
 
@@ -12,7 +15,7 @@ data_dir <- "~/Documents/hackathon/LANL"
 
 
 # Where do you want to save features as a .csv?
-save_dir <- "~/Documents/hackathon"
+save_path <- "~/Documents/hackathon/features.csv"
 
 
 # Get all metadata from all sessions
@@ -208,6 +211,6 @@ y <- c(
 # Save to CSV
 write.csv(
   cbind(X, y),
-  file.path(save_dir, "features.csv"),
+  save_path,
   row.names = FALSE
 )
