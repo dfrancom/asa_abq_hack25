@@ -5,15 +5,28 @@ import numpy as np
 import pandas as pd
 import sam_helpers as sam
 from binary_io import load_binary_multiple_segments
+import gc
+
+path_to_data = "./LANL"
 
 # get all metadata (from each day)
-metadata = list()
 metafiles = list()
-for file in os.listdir("./LANL"):
+for file in os.listdir(path_to_data):
     if file.endswith(".txt"):
-        print(os.path.join("./LANL", file))
+        print(os.path.join(path_to_data, file))
         metafiles.append(file.split(".")[0])
-        metadata.append(pd.read_csv(os.path.join("./LANL", file),sep="\t",skiprows=6))
+metafiles.sort()
+
+metadata = list()
+for file in metafiles:
+    print(os.path.join(path_to_data, file + '.txt'))
+    metadata.append(
+        pd.read_csv(
+            os.path.join(path_to_data, file + '.txt'),
+            sep="\t",
+            skiprows=6,
+        )
+    )
 
 # all days list of seizure start times
 seizure_start_times = list()
@@ -39,10 +52,30 @@ for i in range(len(metafiles)):
         )
     )
 
+# function to make features from a time series
+# this one uses a particular choice of wavelets, but you can change this!
+def make_features_from_ts(ts):
+    temp = sam.compute_wavelet_gabor(
+        signal=ts, fs=2000, freqs=[4, 8, 16, 32]
+    )
+    return np.abs(temp).mean(0)
+
+def make_features_from_multi_ts(ts_mat): # columns are different time series
+    out = list()
+    for i in range(ts_mat.shape[1]):
+        out.append(make_features_from_ts(ts_mat[:,i]))
+    return np.hstack(out)
+
+test_sessions_ind = [5, 6]
+metafiles[5]
+metafiles[6]
+train_sessions_ind = [0,1,2,3,4,7,8,9,10]
+
 #######################################################################
 ## more than 1 hour before seizure (but after last seizure)
 time_before = 3600  # 1 hr before seizure
-features = list()
+features_train = list()
+features_test = list()
 for session in metafiles:
     this_session = np.where(session == np.array(metafiles))[0][0]
     print(session)
@@ -70,11 +103,15 @@ for session in metafiles:
         dat = sam.load_dat(session, offset_times=starts, duration_time=1)
 
         for i in range(len(starts)):
-            temp = sam.compute_wavelet_gabor(
-                signal=dat[i, :, 0], fs=2000, freqs=[4, 8, 16, 32]
-            )
-            features.append(np.abs(temp).mean(0))
-features_longbefore = np.vstack(features)
+            if this_session in train_sessions_ind:
+                features_train.append(make_features_from_multi_ts(dat[i]))
+            else:
+                features_test.append(make_features_from_multi_ts(dat[i]))
+
+features_longbefore_train = np.vstack(features_train)
+features_longbefore_test = np.vstack(features_test)
+
+
 
 
 #######################################################################
@@ -108,11 +145,13 @@ for session in metafiles:
         dat = sam.load_dat(session, offset_times=starts, duration_time=1)
 
         for i in range(len(starts)):
-            temp = sam.compute_wavelet_gabor(
-                signal=dat[i, :, 0], fs=2000, freqs=[4, 8, 16, 32]
-            )
-            features.append(np.abs(temp).mean(0))
-features_hourbefore = np.vstack(features)
+            if this_session in train_sessions_ind:
+                features_train.append(make_features_from_multi_ts(dat[i]))
+            else:
+                features_test.append(make_features_from_multi_ts(dat[i]))
+
+features_hourbefore_train = np.vstack(features_train)
+features_hourbefore_test = np.vstack(features_test)
 
 
 #######################################################################
@@ -133,11 +172,13 @@ for session in metafiles:
         dat = sam.load_dat(session, offset_times=starts, duration_time=1)
 
         for i in range(len(starts)):
-            temp = sam.compute_wavelet_gabor(
-                signal=dat[i, :, 0], fs=2000, freqs=[4, 8, 16, 32]
-            )
-            features.append(np.abs(temp).mean(0))
-features_during = np.vstack(features)
+            if this_session in train_sessions_ind:
+                features_train.append(make_features_from_multi_ts(dat[i]))
+            else:
+                features_test.append(make_features_from_multi_ts(dat[i]))
+
+features_during_train = np.vstack(features_train)
+features_during_test = np.vstack(features_test)
 
 #######################################################################
 ## <10 min after seizure
@@ -169,28 +210,37 @@ for session in metafiles:
         dat = sam.load_dat(session, offset_times=starts, duration_time=1)
 
         for i in range(len(starts)):
-            temp = sam.compute_wavelet_gabor(
-                signal=dat[i, :, 0], fs=2000, freqs=[4, 8, 16, 32]
-            )
-            features.append(np.abs(temp).mean(0))
-features_after = np.vstack(features)
+            if this_session in train_sessions_ind:
+                features_train.append(make_features_from_multi_ts(dat[i]))
+            else:
+                features_test.append(make_features_from_multi_ts(dat[i]))
 
-X = np.vstack(
-    (features_longbefore, features_hourbefore, features_during, features_after)
+features_after_train = np.vstack(features_train)
+features_after_test = np.vstack(features_test)
+
+inputs_train = np.vstack(
+    (features_longbefore_train, features_hourbefore_train, features_during_train, features_after_train)
 )
-y = np.hstack(
+inputs_test = np.vstack(
+    (features_longbefore_test, features_hourbefore_test, features_during_test, features_after_test)
+)
+cat_train = np.hstack(
     (
-        np.repeat(0, features_longbefore.shape[0]),
-        np.repeat(1, features_hourbefore.shape[0]),
-        np.repeat(2, features_during.shape[0]),
-        np.repeat(3, features_after.shape[0]),
+        np.repeat(0, features_longbefore_train.shape[0]),
+        np.repeat(1, features_hourbefore_train.shape[0]),
+        np.repeat(2, features_during_train.shape[0]),
+        np.repeat(3, features_after_train.shape[0]),
+    )
+)
+cat_test = np.hstack(
+    (
+        np.repeat(0, features_longbefore_test.shape[0]),
+        np.repeat(1, features_hourbefore_test.shape[0]),
+        np.repeat(2, features_during_test.shape[0]),
+        np.repeat(3, features_after_test.shape[0]),
     )
 )
 
-np.savetxt("features.csv", np.column_stack((X, y)), delimiter=",")
+np.savetxt("features_train.csv", np.column_stack((inputs_train, cat_train)), delimiter=",")
+np.savetxt("features_test.csv", np.column_stack((inputs_test, cat_test)), delimiter=",")
 
-
-## TODO:
-## features from multiple channels
-## write general feature function
-## make a clean wrapper for load_binary_multiple_segments

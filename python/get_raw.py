@@ -5,21 +5,28 @@ import numpy as np
 import pandas as pd
 import sam_helpers as sam
 from binary_io import load_binary_multiple_segments
+import gc
+
+path_to_data = "./LANL"
 
 # get all metadata (from each day)
-metadata = list()
 metafiles = list()
-for file in os.listdir("./LANL"):
+for file in os.listdir(path_to_data):
     if file.endswith(".txt"):
-        print(os.path.join("./LANL", file))
+        print(os.path.join(path_to_data, file))
         metafiles.append(file.split(".")[0])
-        metadata.append(
-            pd.read_csv(
-                os.path.join("./LANL", file),
-                sep="\t",
-                skiprows=6,
-            )
+metafiles.sort()
+
+metadata = list()
+for file in metafiles:
+    print(os.path.join(path_to_data, file + '.txt'))
+    metadata.append(
+        pd.read_csv(
+            os.path.join(path_to_data, file + '.txt'),
+            sep="\t",
+            skiprows=6,
         )
+    )
 
 # all days list of seizure start times
 seizure_start_times = list()
@@ -64,7 +71,7 @@ for session in metafiles:
             - 50,  # duration in seconds, not sure why I need -50 on day 1
             precision="int16",
             channels=[0, 1, 2, 3],  # list of channels to return
-        )
+        )[0] # delete this if using multiple offsets
     )
 
 
@@ -110,12 +117,59 @@ for session in metafiles:
         temp[np.where((tt >= this_end) & (tt <= this_end_plus))] = 3  # after
 
     cat_time.append(temp)
+del temp
 
 # number of seconds in each category
 pd.DataFrame(cat_time[1]).value_counts() / 2000
 
 plt.scatter(
     np.arange(0, (3600 * 24 - 50) * 2000, 2000),
-    cat_time[1][np.arange(0, (3600 * 24 - 50) * 2000, 2000)],
+    cat_time[0][np.arange(0, (3600 * 24 - 50) * 2000, 2000)],
 )
+plt.plot(cat_time[0][np.arange(0, (3600 * 24 - 50) * 2000, 1)])
 plt.show()
+
+
+gc.collect()
+
+
+# seizure starts lined up
+k = 0
+for i in range(len(metafiles)):
+    for j in range(len(seizure_start_times[i])):
+        plt.plot(alldays[i][0,
+                            int(seizure_start_times[i].iloc[j] * 2000-40000):
+                            int(seizure_start_times[i].iloc[j] * 2000+40000)
+                            , 0] + k)
+        k += 100
+plt.show()
+
+# seizure ends lined up
+k = 0
+for i in range(len(metafiles)):
+    for j in range(len(seizure_end_times[i])):
+        plt.plot(alldays[i][0,
+                            int(seizure_end_times[i].iloc[j] * 2000-40000):
+                            int(seizure_end_times[i].iloc[j] * 2000+40000)
+                            , 0] + k)
+        k += 100
+plt.show()
+
+
+
+test_sessions_ind = [5, 6]
+metafiles[5]
+metafiles[6]
+train_sessions_ind = [0,1,2,3,4,7,8,9,10]
+
+np.hstack(cat_time)
+cat_time[train_sessions_ind]
+
+raw_inputs_train = np.vstack([alldays[i] for i in train_sessions_ind])
+raw_inputs_test = np.vstack([alldays[i] for i in test_sessions_ind])
+
+cat_train = np.hstack([cat_time[i] for i in train_sessions_ind])
+cat_test = np.hstack([cat_time[i] for i in test_sessions_ind])
+
+del alldays 
+del cat_time

@@ -15,7 +15,7 @@ data_dir <- "~/git/asa_abq_hack25/LANL"
 
 
 # Where do you want to save features as a .csv?
-save_path <- "~/git/asa_abq_hack25/features.csv"
+save_path <- "~/git/asa_abq_hack25/features"
 
 
 # Get all metadata from all sessions
@@ -48,7 +48,7 @@ for(i in 1:n_sessions){
 
 make_features_from_ts <- function(ts){
   temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
-    signal = dat[j, , 1],
+    signal = ts,
     fs = 2000,
     freqs = c(4, 8, 16, 32)
   )
@@ -57,7 +57,7 @@ return(apply(abs(temp), 2, mean))
 
 make_features_from_multi_ts <- function(ts_mat){ # columns are different time series
   out <- list()
-  for(i in ncol(ts_mat)){
+  for(i in 1:ncol(ts_mat)){
     out[[i]]<-make_features_from_ts(ts_mat[,i])
   }
   return(unlist(out))
@@ -260,7 +260,12 @@ cat_test <- c(
 
 # Save to CSV
 write.csv(
-  cbind(X, y),
-  save_path,
+  cbind(inputs_train, cat_train),
+  paste0(save_path,'_train.csv'),
+  row.names = FALSE
+)
+write.csv(
+  cbind(inputs_test, cat_test),
+  paste0(save_path,'_test.csv'),
   row.names = FALSE
 )

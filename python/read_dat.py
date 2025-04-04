@@ -11,7 +11,7 @@ from binary_io import load_binary_multiple_segments
 # mouse id: AC75a-5 DOB 072519
 # date/time: 2020-03-23_17_30_04
 day1 = load_binary_multiple_segments(
-    file_path="/Users/dfrancom/git/hackathon/LANL/AC75a-5_DOB_072519_TS_2020-03-24_17_30_04_allCh.dat",
+    file_path="./LANL/AC75a-5_DOB_072519_TS_2020-03-24_17_30_04_allCh.dat",
     n_chan=4,  # DO NOT CHANGE # number of channels in the file (4)
     sample_rate=2000,  # DO NOT CHANGE # samples/second (2000 Hz)
     offset_times=[0],  # offset in seconds, out of 86400 (24 hours), can be list
@@ -66,7 +66,7 @@ day1_seizure_start_times.values.tolist()
 
 # read 20 seconds around seizure start (for first day)
 day1seizures = load_binary_multiple_segments(
-    file_path="/Users/dfrancom/git/hackathon/LANL/"
+    file_path="./LANL/"
     + metafiles[5]
     + "_allCh.dat",
     n_chan=4,  # DO NOT CHANGE
@@ -89,7 +89,7 @@ alldays = list()
 for name in metafiles:
     alldays.append(
         load_binary_multiple_segments(
-            file_path="/Users/dfrancom/git/hackathon/LANL/"
+            file_path="./LANL/"
             + name
             + "_allCh.dat",
             n_chan=4,  # DO NOT CHANGE # number of channels in the file (4)
@@ -137,7 +137,7 @@ for name in metafiles:
     this_day = np.where(name == np.array(metafiles))[0][0]
     allseizures.append(
         load_binary_multiple_segments(
-            file_path="/Users/dfrancom/git/hackathon/LANL/"
+            file_path="./LANL/"
             + name
             + "_allCh.dat",
             n_chan=4,  # DO NOT CHANGE
@@ -164,7 +164,7 @@ plt.show()
 
 # get some 1 second set of data
 test = load_binary_multiple_segments(
-    file_path="/Users/dfrancom/git/hackathon/LANL/AC75a-5_DOB_072519_TS_2020-03-24_17_30_04_allCh.dat",
+    file_path="./LANL/AC75a-5_DOB_072519_TS_2020-03-24_17_30_04_allCh.dat",
     n_chan=4,  # DO NOT CHANGE # number of channels in the file (4)
     sample_rate=2000,  # DO NOT CHANGE # samples/second (2000 Hz)
     offset_times=[
@@ -260,7 +260,7 @@ for session in metafiles:
         )
 
         dat = load_binary_multiple_segments(
-            file_path="/Users/dfrancom/git/hackathon/LANL/"
+            file_path="./LANL/"
             + session
             + "_allCh.dat",
             n_chan=4,  # DO NOT CHANGE
@@ -308,7 +308,7 @@ for session in metafiles:
         )
 
         dat = load_binary_multiple_segments(
-            file_path="/Users/dfrancom/git/hackathon/LANL/"
+            file_path="./LANL/"
             + session
             + "_allCh.dat",
             n_chan=4,  # DO NOT CHANGE
@@ -343,7 +343,7 @@ for session in metafiles:
         )
 
         dat = load_binary_multiple_segments(
-            file_path="/Users/dfrancom/git/hackathon/LANL/"
+            file_path="./LANL/"
             + session
             + "_allCh.dat",
             n_chan=4,  # DO NOT CHANGE
@@ -389,7 +389,7 @@ for session in metafiles:
         )
 
         dat = load_binary_multiple_segments(
-            file_path="/Users/dfrancom/git/hackathon/LANL/"
+            file_path="./LANL/"
             + session
             + "_allCh.dat",
             n_chan=4,  # DO NOT CHANGE
