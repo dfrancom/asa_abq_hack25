@@ -6,16 +6,16 @@ library(pracma)
 
 
 # Source asa_abq_hack25 R script dependencies (in order).
-source('~/Documents/hackathon/asa_abq_hack25/R/binary_io.R')
-source('~/Documents/hackathon/asa_abq_hack25/R/sam_helpers.R')
+source('~/git/asa_abq_hack25/R/binary_io.R')
+source('~/git/asa_abq_hack25/R/sam_helpers.R')
 
 
 # Where did you put the data?
-data_dir <- "~/Documents/hackathon/LANL"
+data_dir <- "~/git/asa_abq_hack25/LANL"
 
 
 # Where do you want to save features as a .csv?
-save_path <- "~/Documents/hackathon/features.csv"
+save_path <- "~/git/asa_abq_hack25/features.csv"
 
 
 # Get all metadata from all sessions
@@ -46,11 +46,34 @@ for(i in 1:n_sessions){
   seizure_end_times[[i]] <- metadata[[i]][["Time From Start"]][seizure_end]
 }
 
+make_features_from_ts <- function(ts){
+  temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
+    signal = dat[j, , 1],
+    fs = 2000,
+    freqs = c(4, 8, 16, 32)
+  )
+return(apply(abs(temp), 2, mean))
+}
+
+make_features_from_multi_ts <- function(ts_mat){ # columns are different time series
+  out <- list()
+  for(i in ncol(ts_mat)){
+    out[[i]]<-make_features_from_ts(ts_mat[,i])
+  }
+  return(unlist(out))
+} 
+
+
+
+test_sessions_ind <- c(5, 6)
+train_sessions_ind = c(0,1,2,3,4,7,8,9,10)
+
+
 
 # Get features for data collected MORE than 1 hour before seizure
 # (but more than 10 minutes after last seizure)
 time_before <- 3600  # 1 hr before seizure
-features <- list()
+features_train <- features_test <- list()
 for(i in 1:n_sessions){
   for(sz_ind in 1:length(seizure_start_times[[i]])){
     if(sz_ind == 1){
@@ -77,21 +100,23 @@ for(i in 1:n_sessions){
     ) 
     
     for(j in 1:length(starts)){
-      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
-        signal = dat[j, , 1],
-        fs = 2000,
-        freqs = c(4, 8, 16, 32)
-      )
-      features <- c(features, list(apply(abs(temp), 2, mean)))
+      temp <- make_features_from_multi_ts(dat[j,,])
+      if(i %in% train_sessions_ind){
+        features_train <- c(features_train, list(temp))
+      } else{
+        features_test <- c(features_test, list(temp))
+      }
+      
     }
   }
 }
-features_longbefore <- do.call(rbind, features)
+features_longbefore_train <- do.call(rbind, features_train)
+features_longbefore_test <- do.call(rbind, features_test)
 
 
 # Get features for data collected LESS than 1 hour before seizure
 # (and more than 10 minutes after last seizure)
-features <- list()
+features_train <- features_test <- list()
 for(i in 1:n_sessions){
   for (sz_ind in seq_along(seizure_start_times[[i]])) {
     if (sz_ind == 1) {
@@ -119,19 +144,23 @@ for(i in 1:n_sessions){
       duration_time = 1
     )     
     
-    for (j in 1:length(starts)) {
-      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
-        signal = dat[j, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
-      )
-      features <- c(features, list(apply(abs(temp), 2, mean)))
+    for(j in 1:length(starts)){
+      temp <- make_features_from_multi_ts(dat[j,,])
+      if(i %in% train_sessions_ind){
+        features_train <- c(features_train, list(temp))
+      } else{
+        features_test <- c(features_test, list(temp))
+      }
+      
     }
   }
 }
-features_hourbefore <- do.call(rbind, features)
+features_hourbefore_train <- do.call(rbind, features_train)
+features_hourbefore_test <- do.call(rbind, features_test)
 
 
 # Get features for data collected DURING a seizure
-features <- list()
+features_train <- features_test <- list()
 for(i in 1:n_sessions){
   for (sz_ind in 1:length(seizure_start_times[[i]])) {
     starts <- .get_x_pct_time_of_interval( # function defined in 'sam_helpers.R'
@@ -148,19 +177,23 @@ for(i in 1:n_sessions){
       duration_time = 1
     ) 
     
-    for (j in seq_along(starts)) {
-      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
-        signal = dat[j, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
-      )
-      features <- c(features, list(apply(abs(temp), 2, mean)))
+    for(j in 1:length(starts)){
+      temp <- make_features_from_multi_ts(dat[j,,])
+      if(i %in% train_sessions_ind){
+        features_train <- c(features_train, list(temp))
+      } else{
+        features_test <- c(features_test, list(temp))
+      }
+      
     }
   }
 }
-features_during <- do.call(rbind, features)
+features_during_train <- do.call(rbind, features_train)
+features_during_test <- do.call(rbind, features_test)
 
 
 # Get features for data collected less than 10 minutes after a seizure
-features <- list()
+features_train <- features_test <- list()
 for(i in 1:n_sessions){
   for (sz_ind in 1:length(seizure_start_times[[i]])) {
     end_time <- seizure_end_times[[i]][sz_ind]
@@ -187,24 +220,41 @@ for(i in 1:n_sessions){
       duration_time = 1
     )
     
-    for (j in seq_along(starts)) {
-      temp <- compute_wavelet_gabor( # function defined in 'sam_helpers.R'
-        signal = dat[j, , 1], fs = 2000, freqs = c(4, 8, 16, 32)
-      )
-      features <- c(features, list(apply(abs(temp), 2, mean)))
+    for(j in 1:length(starts)){
+      temp <- make_features_from_multi_ts(dat[j,,])
+      if(i %in% train_sessions_ind){
+        features_train <- c(features_train, list(temp))
+      } else{
+        features_test <- c(features_test, list(temp))
+      }
+      
     }
   }
 }
-features_after <- do.call(rbind, features)
+features_after_train <- do.call(rbind, features_train)
+features_after_test <- do.call(rbind, features_test)
 
 
 # Combine features X and labels y
-X <- rbind(features_longbefore, features_hourbefore, features_during, features_after)
-y <- c(
-  rep(0, nrow(features_longbefore)),
-  rep(1, nrow(features_hourbefore)),
-  rep(2, nrow(features_during)),
-  rep(3, nrow(features_after))
+inputs_train <- rbind(features_longbefore_train, 
+                      features_hourbefore_train, 
+                      features_during_train, 
+                      features_after_train)
+inputs_test <- rbind(features_longbefore_test, 
+                      features_hourbefore_test, 
+                      features_during_test, 
+                      features_after_test)
+cat_train <- c(
+  rep(0, nrow(features_longbefore_train)),
+  rep(1, nrow(features_hourbefore_train)),
+  rep(2, nrow(features_during_train)),
+  rep(3, nrow(features_after_train))
+)
+cat_test <- c(
+  rep(0, nrow(features_longbefore_test)),
+  rep(1, nrow(features_hourbefore_test)),
+  rep(2, nrow(features_during_test)),
+  rep(3, nrow(features_after_test))
 )
 
 
