@@ -4,14 +4,15 @@ library(data.table)
 library(pracma)
 library(ggplot2)
 
+# directory of repo
+setwd('~/git/asa_abq_hack25/')
+
+# directory of data
+data_dir <- "~/git/asa_abq_hack25/LANL"
 
 # Source asa_abq_hack25 R script dependencies (in order).
-source('~/Documents/hackathon/asa_abq_hack25/R/binary_io.R')
-source('~/Documents/hackathon/asa_abq_hack25/R/sam_helpers.R')
-
-
-# Where did you put the data?
-data_dir <- "~/Documents/hackathon/LANL"
+source('R/binary_io.R')
+source('R/sam_helpers.R')
 
 
 # Get all metadata from all sessions
@@ -24,6 +25,10 @@ for(file in files){
 }
 n_sessions <- length(sessions)
 
+# pick sessions to hold out for testing
+test_sessions_ind <- 6:7
+train_sessions_ind <- (1:n_sessions)[-test_sessions_ind]
+sessions[test_sessions_ind]
 
 # all days list of seizure start times
 seizure_start_times = vector('list', n_sessions)
@@ -45,21 +50,46 @@ for(i in 1:n_sessions){
 
 # Read in all raw data for this mouse (may be too large to read in all sessions,
 # but it's ok if you can't read it all)
-raw_dat <- vector('list', n_sessions)
+n_per_session <- (3600 * 24 - 50) * 2000
+raw_inputs_train <- matrix(1L,ncol=4,nrow=n_per_session * length(train_sessions_ind))#vector('list', n_sessions)
+mode(raw_inputs_train) <- 'integer'
+raw_inputs_test <- matrix(1L,ncol=4,nrow=n_per_session * length(test_sessions_ind))
+mode(raw_inputs_test) <- 'integer'
+k_train <- k_test <- 0
 for(i in 1:n_sessions){
   cat(sessions[i], "\n")
-  raw_dat[[i]] <- load_binary_multiple_segments( # function from 'binary_io.R'
-    file_path = file.path(data_dir, paste0(sessions[i], "_allCh.dat")),
-    n_chan = 4,  # DO NOT CHANGE # number of channels in the file (4)
-    sample_rate = 2000,  # DO NOT CHANGE # samples/second (2000 Hz)
-    offset_times = 0,  # offset in seconds, out of 86400 (24 hours), can be list
-    duration_time = 3600 * 24 - 50,  # duration in seconds, not sure why I need -50 on day 1
-    precision = "integer",
-    channels = 1:4  # list of channels to return
-  )
-  mode(raw_dat[[k]])<-'integer' # option 1: 30 GB
+  if(i %in% train_sessions_ind){
+    temp <- load_binary_multiple_segments( # function from 'binary_io.R'
+      file_path = file.path(data_dir, paste0(sessions[i], "_allCh.dat")),
+      n_chan = 4,  # DO NOT CHANGE # number of channels in the file (4)
+      sample_rate = 2000,  # DO NOT CHANGE # samples/second (2000 Hz)
+      offset_times = 0,  # offset in seconds, out of 86400 (24 hours), can be list
+      duration_time = 3600 * 24 - 50,  # duration in seconds, not sure why I need -50 on day 1
+      precision = "integer",
+      channels = 1:4  # list of channels to return
+    )[1,,] # remove this when using multiple offset times
+    mode(temp)<-'integer'
+    gc()
+    raw_inputs_train[(1:n_per_session) + k_train*n_per_session,] <- temp
+    k_train <- k_train + 1
+  } else{
+    temp <- load_binary_multiple_segments( # function from 'binary_io.R'
+      file_path = file.path(data_dir, paste0(sessions[i], "_allCh.dat")),
+      n_chan = 4,  # DO NOT CHANGE # number of channels in the file (4)
+      sample_rate = 2000,  # DO NOT CHANGE # samples/second (2000 Hz)
+      offset_times = 0,  # offset in seconds, out of 86400 (24 hours), can be list
+      duration_time = 3600 * 24 - 50,  # duration in seconds, not sure why I need -50 on day 1
+      precision = "integer",
+      channels = 1:4  # list of channels to return
+    )[1,,] # remove this when using multiple offset times
+    mode(temp)<-'integer'
+    gc()
+    raw_inputs_test[(1:n_per_session) + k_test*n_per_session,] <- temp
+    k_test <- k_test + 1
+  }
   #raw_dat[[k]]<-ff::as.short(raw_dat[[k]]) # option 2: 15 GB but limited math operations?
 }
+rm(temp)
 
 # Categorize each segment
 # Categories:
@@ -104,24 +134,41 @@ for(i in 1:n_sessions){
     temp[(tt >= this_end) & (tt <= this_end_plus)] <- 3  # after
   }
   
+  mode(temp) <- 'integer'
   cat_time[[i]] <- temp
 }
 rm(temp, tt) # delete when finished
-
+cat_train <- unlist(cat_time[train_sessions_ind])
+cat_test <- unlist(cat_time[test_sessions_ind])
+rm(cat_time)
 
 # Number of segments in each category
 # table(cat_time[[1]]) # slow
-sum(cat_time[[1]] == 0) # 0: >1hr until next seizure
-sum(cat_time[[1]] == 1) # 1: <1hr until next seizure
-sum(cat_time[[1]] == 2) # 2: seizure happening
-sum(cat_time[[1]] == 3) # 3: <10min after last seizure
-sum(cat_time[[1]] == -1) # -1: None of the above
+sum(cat_train == 0) # 0: >1hr until next seizure
+sum(cat_test == 0)
+sum(cat_train == 1) # 1: <1hr until next seizure
+sum(cat_test == 1)
+sum(cat_train == 2) # 2: seizure happening
+sum(cat_test == 2)
+sum(cat_train == 3) # 3: <10min after last seizure
+sum(cat_test == 3)
+sum(cat_train == -1) # -1: None of the above
+sum(cat_test == -1)
 
 
 # Plot category for each segment
-tt_grid <- seq(1, (3600 * 24 - 50) * 2000, by = 2000)
-ggplot(data.frame(x = tt_grid, y = cat_time[[1]][tt_grid]), aes(x = x, y = y)) +
+tt_grid <- seq(1, (3600 * 24 - 50) * 2000 * length(train_sessions_ind), by = 2000)
+ggplot(data.frame(x = tt_grid, y = cat_train[tt_grid]), aes(x = x, y = y)) +
   geom_point() +
   theme_minimal()
 
+seizure_start_times_train<-seizure_start_times_test<-NULL
+for(i in 1:n_sessions){
+  if(i %in% train_sessions_ind){
+    seizure_start_times_train<-c(seizure_start_times_train,seizure_start_times[[i]])
+  } else{
+    seizure_start_times_test<-c(seizure_start_times_test,seizure_start_times[[i]])
+  }
+}
 
+matplot(raw_inputs_train[(14221.82 * 2000 - 1000):(14221.82 * 2000 + 1000),],type='l',ylim=c(-100,100))
